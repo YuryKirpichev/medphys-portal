@@ -1,5 +1,5 @@
 ## About 
-An easy frontend for pylinac[https://pylinac.readthedocs.io/en/latest/] 
+An easy frontend for [pylinac](https://pylinac.readthedocs.io/en/latest/)
 For educational usage only
 
 the project runs on docker
