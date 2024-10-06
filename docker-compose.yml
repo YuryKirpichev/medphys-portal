@@ -1,0 +1,11 @@
+version: '3.5'
+services:
+  app:
+    build: .
+    restart: always
+    container_name: medphys_portal
+    ports:
+      - 8050:8050
+    volumes:
+      - ./app/app.py:/usr/src/app/app.py
+      - ./app/assets:/usr/src/app/assets

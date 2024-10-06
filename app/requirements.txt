@@ -1,0 +1,14 @@
+dash==2.18.1
+dash-bootstrap-components==1.6.0
+dash-core-components==2.0.0
+dash-html-components==2.0.0
+dash-table==5.0.0
+dash_uploader==0.6.0
+pandas==2.2.3
+plotly==5.24.1
+numpy==1.26.4
+matplotlib==3.9.2
+python-math==0.0.1
+pylinac==3.27.0
+pydicom==2.4.4
+loguru==0.7.2
