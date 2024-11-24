@@ -9,3 +9,4 @@ services:
     volumes:
       - ./app/app.py:/usr/src/app/app.py
       - ./app/assets:/usr/src/app/assets
+      - ./Uploads:/usr/src/Uploads

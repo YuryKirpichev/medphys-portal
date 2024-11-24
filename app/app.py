@@ -186,25 +186,13 @@ app.layout = html.Div([
     html.Div([
         dbc.Row([
             dbc.Col([
-                html.H1('MEDICAL PHYSICS PORTAL',
-                style={
-                    'textAlign': 'left',
-                    'margin-top': 20,
-                    'color': 'white'},
-                id='title'),
-                html.B('For education purposes only',
-                style={
-                    'textAlign': 'left',
-                    'color': 'tomato'
-                })],
-                style={
-                    'width':'70%', 'display': 'inline-block'}),
+                html.H1('MEDICAL PHYSICS PORTAL', style={'textAlign': 'left', 'margin-top': 20, 'color': 'white'}, id='title'),
+                html.P('by Yury Kirpichev', style={'testAlign': 'left', 'color': 'white'}),
+                html.Br(),
+                html.B('For education purposes only', style={'textAlign': 'left', 'color': 'tomato'}),
+                ], style={ 'width':'70%', 'display': 'inline-block'}),
             dbc.Col(
-                html.Img(src=logo_path, style={
-                    'width':'90%',
-                    'text-align': 'right', 
-                    'max-width':500,
-                    'margin-top': 20,}),
+                html.Img(src=logo_path, style={'width':'90%', 'text-align': 'right', 'max-width':500, 'margin-top': 0,},),
                 style={'width':'25%', 'display': 'inline-block'}),
         ], style={'margin-bottom': 5, 'margin-left': 100}),
         html.Br(),
@@ -263,14 +251,17 @@ app.layout = html.Div([
 ])
 def analise_star(upload_id):
     fileNames = os.listdir(os.path.join(UPLOAD_FOLDER, upload_id))
-    fullFileNames = [os.path.join(os.path.join(UPLOAD_FOLDER, upload_id), f) for f in fileNames]
+    logger.info(f'file names = {fileNames}')
 
+    fullFileNames = [os.path.join(os.path.join(UPLOAD_FOLDER, upload_id), f) for f in fileNames]
     logger.info(f'file names = {fullFileNames}')
+
     try:
         star = Starshot.from_multiple_images(fullFileNames)
         machine = [pydicom.dcmread(f, stop_before_pixels = True).RadiationMachineName for f in fullFileNames]
-        logger.info(f'Star Test has been sucsesfully analised')
+        logger.info(f'Star Test has been successfully strarted')
         star.analyze(radius=0.5, tolerance=0.8)
+        logger.info(f'Star Test has been successfully analyzed. Results: {star.results()}')
         export_text = html.Div([
             html.H3('Star Test Results:'),
             html.P(f'Machine: {machine}')])
@@ -565,8 +556,8 @@ def update_output(type_selected, isCompleted, fileNames, upload_id):
     elif type_selected == 'Star':
         logger.info(f'Star analysation has been started')
         if isCompleted:
-            
             logger.info(f'upload_id: {upload_id}')
+            logger.info(f'file names: {os.listdir()}')
 
             children = analise_star(upload_id = upload_id)
 
