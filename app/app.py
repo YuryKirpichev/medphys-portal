@@ -27,6 +27,7 @@ from pylinac import PicketFence
 from pylinac import Starshot
 import pydicom
 from datetime import datetime as dt
+import time
 
 
 
@@ -190,10 +191,10 @@ app.layout = html.Div([
                 html.P('by Yury Kirpichev', style={'testAlign': 'left', 'color': 'white'}),
                 html.Br(),
                 html.B('For education purposes only', style={'textAlign': 'left', 'color': 'tomato'}),
-                ], style={ 'width':'70%', 'display': 'inline-block'}),
+                ], style={ 'width':'85%', 'display': 'inline-block'}),
             dbc.Col(
-                html.Img(src=logo_path, style={'width':'90%', 'text-align': 'right', 'max-width':500, 'margin-top': 0,},),
-                style={'width':'25%', 'display': 'inline-block'}),
+                html.Img(src=logo_path, style={'width':'90%', 'text-align': 'right', 'max-width':150, 'max-height':150, 'horisontal-align': 'right','margin-top': 0,},),
+                style={'width':'150', 'display': 'inline-block'}),
         ], style={'margin-bottom': 5, 'margin-left': 100}),
         html.Br(),
 
@@ -245,7 +246,7 @@ app.layout = html.Div([
         max_files=20
         ),
 
-
+    html.Button('Analyze', id='submit-val', n_clicks=0),
     # place for the output
     html.Div(id='output-data-upload'),
 ])
@@ -255,13 +256,14 @@ def analise_star(upload_id):
 
     fullFileNames = [os.path.join(os.path.join(UPLOAD_FOLDER, upload_id), f) for f in fileNames]
     logger.info(f'file names = {fullFileNames}')
-
+    #star = Starshot.from_multiple_images(fullFileNames)
+    star = Starshot.run_demo()
+    logger.info(f'Star Test has been successfully strarted')
+    star.analyze(radius=0.5, tolerance=0.8)
+    logger.info(f'Star Test has been successfully analyzed. Results: {star.results()}')
     try:
-        star = Starshot.from_multiple_images(fullFileNames)
         machine = [pydicom.dcmread(f, stop_before_pixels = True).RadiationMachineName for f in fullFileNames]
-        logger.info(f'Star Test has been successfully strarted')
-        star.analyze(radius=0.5, tolerance=0.8)
-        logger.info(f'Star Test has been successfully analyzed. Results: {star.results()}')
+        
         export_text = html.Div([
             html.H3('Star Test Results:'),
             html.P(f'Machine: {machine}')])
@@ -542,30 +544,35 @@ def parse_contents_effectiveFS(upload_id, fileNames):
 
 @app.callback(Output('output-data-upload', 'children'),
     [Input('type', 'value'), 
-     Input('upload-files-div', 'isCompleted')],
+     Input('upload-files-div', 'isCompleted'),
+     Input('submit-val', 'n_clicks'),],
     [State('upload-files-div', 'fileNames'), 
      State('upload-files-div', 'upload_id')])
-def update_output(type_selected, isCompleted, fileNames, upload_id):
+def update_output(type_selected, isCompleted, n_clicks, fileNames, upload_id):
     logger.info(f'Selected type - {type_selected}')
     if type_selected == 'EffectiveFS':
-        if isCompleted:
+        if isCompleted and n_clicks != 0:
             children = parse_contents_effectiveFS(upload_id, fileNames)
         else:
             children = [html.Div(f'Upload a plan for analysation')]
         return children
     elif type_selected == 'Star':
         logger.info(f'Star analysation has been started')
-        if isCompleted:
+        if isCompleted and n_clicks != 0:
             logger.info(f'upload_id: {upload_id}')
-            logger.info(f'file names: {os.listdir()}')
+            logger.info(f'button clicked {n_clicks} times')
 
-            children = analise_star(upload_id = upload_id)
+            try:
+                children = analise_star(upload_id)
+               
+            except Exception as e:
+                children = [html.Div(f'Error: {e}')]
 
         children = html.Div(f'Star analysation is under progress')
         return children
     elif type_selected == 'PicketFence':
         logger.info(f'PicketFence analysation has been started')
-        if isCompleted:
+        if isCompleted and n_clicks != 0:
             logger.info(f'Upload ID: {upload_id}, fileNames: {fileNames}')
             if len(fileNames)!=1:
                 return html.Div(f'Upload only one file for PicketFence analysation') 
