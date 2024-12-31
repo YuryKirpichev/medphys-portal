@@ -4,7 +4,7 @@ import base64
 
 import numpy as np
 import pandas as pd
-from flask import Flask
+from flask import Flask, send_from_directory
 
 import pydicom as dcm
 from math import sqrt
@@ -29,7 +29,7 @@ import pydicom
 from datetime import datetime as dt
 import time
 
-
+from PIL import Image
 
 #TPR 483 DATA
 trs_ptw_31016 = dict({
@@ -61,8 +61,6 @@ def check_jaw_tracking(file, beam_number):
             jaw_tracking = 'ON'
 
     return jaw_tracking
-
-
 
 def number_of_beams_calculation(file):
     return(int(file.FractionGroupSequence[0].NumberOfBeams))
@@ -152,7 +150,11 @@ app = dash.Dash(__name__,
                 external_stylesheets=external_stylesheets,
                 title='Medphys portal', )
 
-UPLOAD_FOLDER = os.path.join(os.getcwd(), "Uploads")
+UPLOAD_FOLDER = os.path.join(os.getcwd(),'assets', "Uploads")
+REPORTS_FOLDER = os.path.join(os.getcwd(), 'assets', 'Reports')
+REPORTS_FOLDER_LINK = os.path.join('assets', 'Reports')
+
+logger.info(f'Upload folder - {UPLOAD_FOLDER}')
 du.configure_upload(app, UPLOAD_FOLDER)
 
 
@@ -188,9 +190,9 @@ app.layout = html.Div([
         dbc.Row([
             dbc.Col([
                 html.H1('MEDICAL PHYSICS PORTAL', style={'textAlign': 'left', 'margin-top': 20, 'color': 'white'}, id='title'),
-                html.P('by Yury Kirpichev', style={'testAlign': 'left', 'color': 'white'}),
+                html.P('Plotly web-tool for pylinac by Yury Kirpichev', style={'testAlign': 'left', 'color': 'white'}),
                 html.Br(),
-                html.B('For education purposes only', style={'textAlign': 'left', 'color': 'tomato'}),
+                html.B('For BOCOC usage only', style={'textAlign': 'left', 'color': 'tomato'}),
                 ], style={ 'width':'85%', 'display': 'inline-block'}),
             dbc.Col(
                 html.Img(src=logo_path, style={'width':'90%', 'text-align': 'right', 'max-width':150, 'max-height':150, 'horisontal-align': 'right','margin-top': 0,},),
@@ -250,45 +252,99 @@ app.layout = html.Div([
     # place for the output
     html.Div(id='output-data-upload'),
 ])
+
+#Star Analyzation
 def analise_star(upload_id):
     fileNames = os.listdir(os.path.join(UPLOAD_FOLDER, upload_id))
-    logger.info(f'file names = {fileNames}')
-
+    
     fullFileNames = [os.path.join(os.path.join(UPLOAD_FOLDER, upload_id), f) for f in fileNames]
     logger.info(f'file names = {fullFileNames}')
-    #star = Starshot.from_multiple_images(fullFileNames)
-    star = Starshot.run_demo()
+    star = Starshot.from_multiple_images(fullFileNames)
+    #star = Starshot.from_demo_image()
     logger.info(f'Star Test has been successfully strarted')
-    star.analyze(radius=0.5, tolerance=0.8)
+    try:
+        star.analyze(radius=0.5, tolerance=0.8)
+    except Exception as e:
+        logger.error(f'Error at star.analyze: {e}')
     logger.info(f'Star Test has been successfully analyzed. Results: {star.results()}')
     try:
-        machine = [pydicom.dcmread(f, stop_before_pixels = True).RadiationMachineName for f in fullFileNames]
-        
-        export_text = html.Div([
-            html.H3('Star Test Results:'),
-            html.P(f'Machine: {machine}')])
-        fig = star.plotly_analyzed_image(show=False, show_colorbar=False, show_legend=False)
-        
-        fig1 = fig['Image']
-        fig1.update_layout(
+        machine = np.unique([pydicom.dcmread(f, stop_before_pixels = True, force=True).RadiationMachineName for f in fullFileNames])
+        if len(machine) == 1:
+            machine = machine[0]
+        logger.info(f'Machine: {machine}')
 
-            margin=dict(
+        date =np.unique([pydicom.dcmread(f, stop_before_pixels = True, force=True).ContentDate for f in fullFileNames])
+        if len(date) == 1:
+            date = date[0]
+        logger.info(f'Data: {date}')
+
+        time =np.unique([pydicom.dcmread(f, stop_before_pixels = True, force=True).InstanceCreationTime for f in fullFileNames])
+        if len(time) == 1:
+            time = time[0]
+        logger.info(f'Time: {time}')
+ 
+        gantry_angle =np.unique([pydicom.dcmread(f, stop_before_pixels = True, force=True).GantryAngle for f in fullFileNames])
+        if len(gantry_angle) == 1:
+            gantry_angle = gantry_angle[0]
+        logger.info(f'Gantry Angle: {gantry_angle}')
+
+        export_text = html.Div([
+            html.P(f'Machine: {machine}'),
+            html.P(f'Irradiation datetime: {date} {time}'),
+            html.P(f'Gantry Angle (°): {gantry_angle:.3f}'),
+            html.P(f'Tolerance: {star.results_data().tolerance_mm}'),
+            html.P(f'Passed: {star.results_data().passed}'),
+            html.P(f'Minimum circle diameter: {star.results_data().circle_diameter_mm:.3f} mm'),
+            html.P(f'Circle center: {star.results_data().circle_center_x_y[0]:.1f}, {star.results_data().circle_center_x_y[1]:.1f}'),
+            ])
+
+        try:
+            fig = star.plotly_analyzed_images(show=False, show_colorbar=False, show_legend=False)
+        
+            fig1 = fig['Image']
+            fig1.update_layout(
+                margin=dict(
                 l=0,
                 r=0,
                 b=0,
                 t=50,
                 pad=4),
-            )
-        children = dbc.Row([
-            dbc.Col(html.P(export_text), style=style_col), 
-            dbc.Col(dcc.Graph(figure=fig1), style=style_col),])
+                )
+
+            fig2 = fig['Wobble']
+            fig2.update_layout(
+                margin=dict(
+                    l=0,
+                    r=0,
+                    b=0,
+                    t=50,
+                    pad=4),
+                )
+        except Exception as e:
+            logger.info(f'plotly image failed with error: {e}')
+            fig1 = go.Figure()
+            fig2 = go.Figure()
+
+        children = html.Div([
+            html.H3('Star Test Results:', style={'textAlign':'center'}),
+            dbc.Row([
+                dbc.Col(html.P(export_text), style=style_col), 
+                dbc.Col(dcc.Graph(figure=fig1), style=style_col),
+                dbc.Col(dcc.Graph(figure=fig2), style=style_col)]),
+        ])
         logger.info(f'Star test analysed sucsesfully')
         logger.info(export_text)
-        return children
+    
     except Exception as e:
         logger.error(f'Error - {e}')
+        children = html.Div()
 
+    for f in fullFileNames:
+        os.remove(f)
+        logger.info(f'Startest files have been deleted')
+    return children
 
+#Picket Fence analyzation
 def analise_picket_fence(upload_id, fileNames):
     file_path = os.path.join(UPLOAD_FOLDER, upload_id, fileNames[0])
     try:
@@ -297,44 +353,115 @@ def analise_picket_fence(upload_id, fileNames):
         pf = PicketFence(file_path)
         dcm = pydicom.dcmread(file_path)
         pf.analyze(tolerance=0.5, action_tolerance=0.4, separate_leaves=False,)
+        #logger.info(f'Picket Fence Analized Succesuffly results: {pf.results_data()}')
+
+        report_name = f'PF {dcm.RadiationMachineName} {dcm.ContentDate} {dcm.InstanceCreationTime}.pdf' 
+        report_path = os.path.join(REPORTS_FOLDER, report_name)
+        report_path_link = os.path.join(REPORTS_FOLDER_LINK, report_name)
+        pf.publish_pdf(filename = report_path)
+        pf_passed = pf.results_data().passed
+
+        if pf_passed:
+            failing_leaves = html.P('')
+        else:
+            failing_leaves = html.B(f'Failing leaves: {pf.results_data().failed_leaves}', style={'color':'tomato'})
+
         export_text = html.Div([
             html.P(f'Machine: {dcm.RadiationMachineName}'),
             html.P(f'Irradiation datetime: {dcm.ContentDate} {dcm.InstanceCreationTime}'),
             html.P(f'Gantry Angle (°): {dcm.GantryAngle:.2f}'),
             html.P(f'Collimator Angle (°): {dcm.BeamLimitingDeviceAngle:.2f}'),
             html.P(f'Tolerance (mm): {pf.results_data().tolerance_mm:.3f}'),
-            html.P(f'Leaves passing (%): {pf.results_data().percent_leaves_passing}'),
+            html.P(f'Leaves passing (%): {pf.results_data().percent_leaves_passing:.3f}'),
+            failing_leaves,
             html.P(f'Absolute median error (mm): {pf.results_data().absolute_median_error_mm:.3f}'),
             html.P(f'Mean picket spacing (mm): {pf.results_data().mean_picket_spacing_mm:.3f}'),
             html.P(f'Picket offsets from CAX (mm):'),
             html.P(f'{[round(v, 1) for v in pf.results_data().offsets_from_cax_mm]}'),
-            html.P(f'Max Error: {pf.results_data().max_error_mm:.3f}mm on Picket: {pf.results_data().max_error_picket}, Leaf: {pf.results_data().max_error_leaf}'),
+            html.P(f'Max Error (mm): {pf.results_data().max_error_mm:.3f} on Picket: {pf.results_data().max_error_picket}, Leaf: {pf.results_data().max_error_leaf}'),
             html.P(f'MLC Skew (°): {pf.results_data().mlc_skew:.3f}'),
-            ], style={'padding': 25})
-        fig = pf.plotly_analyzed_image(show=False, show_colorbar=False, show_legend=False)
-        
-        fig1 = fig['Picket Fence']
-        fig1.update_layout(
+            html.A('Download report', href=report_path_link, download = report_name, target= '_blank')
 
-            margin=dict(
-                l=0,
-                r=0,
-                b=0,
-                t=50,
-                pad=4),
-            )
-        fig2 = fig['Histogram']
-        fig2.update_layout(
-            margin=dict(
-                l=0,
-                r=0,
-                b=0,
-                t=50,
-                pad=4),
-            )
+            ], style={'padding': 25})
+
+        try:
+            fig = pf.plotly_analyzed_image(show=False, show_colorbar=False, show_legend=False)
         
-        logger.info(f'Picket Fence has been sucsesfully analised')
-        logger.info(export_text)
+            fig1 = fig['Picket Fence']
+            fig1.update_layout(
+                margin=dict(
+                l=0,
+                r=0,
+                b=0,
+                t=50,
+                pad=4),
+                )
+            fig2 = fig['Histogram']
+            fig2.update_layout(
+                margin=dict(
+                    l=0,
+                    r=0,
+                    b=0,
+                    t=50,
+                    pad=4),
+                )
+        except Exception as e:
+            logger.error(f'plotly image failed with error: {e}')
+            image_name = os.path.join(UPLOAD_FOLDER, upload_id,'pf_image.png')
+            hist_name = os.path.join(UPLOAD_FOLDER, upload_id, 'hist_name.png')
+
+            pf.save_analyzed_image(image_name, pad_inches=0,  bbox_inches='tight')
+            pf.save_histogram(hist_name)
+            fig_image = Image.open(image_name)
+            fig_hist = Image.open(hist_name)
+
+            os.remove(hist_name)
+            os.remove(image_name)
+
+            logger.info(f'Hist size: {fig_hist.size}')
+            fig1 = go.Figure()
+            fig1.add_layout_image(
+                dict(
+                    source=fig_image,
+                    xref="x",
+                    yref="y",
+                    x=0,
+                    y=4,    
+                    sizex=4,
+                    sizey=4,
+                    layer="below"
+                )
+            )
+
+            height = 600
+            width = height*fig_image.size[0]/fig_image.size[1]
+
+            fig1.update_layout(yaxis_range=[0,4], xaxis_range=[0,4], width=width, height=height, plot_bgcolor='white')
+            fig1.update_xaxes(showgrid=False, showticklabels=False)
+            fig1.update_yaxes(showgrid=False, showticklabels=False)
+
+            fig2 = go.Figure()
+            fig2.add_layout_image(
+                dict(
+                    source=fig_hist,
+                    xref="x",
+                    yref="y",
+                    x=0,
+                    y=4,    
+                    sizex=4,
+                    sizey=4,
+                    layer="below"
+                )
+            )
+            height = 600
+            width = height*fig_hist.size[0]/fig_hist.size[1]
+            fig2.update_layout(yaxis_range=[0,4], xaxis_range=[0,4], width=width, height=height, plot_bgcolor='white')
+            fig2.update_xaxes(showgrid=False, showticklabels=False)
+            fig2.update_yaxes(showgrid=False, showticklabels=False)
+
+
+        logger.info(f'Picket Fence has been done')
+        
         children = html.Div([
             html.H3('Picket Fence Results:', style={'textAlign':'center'}),
             dbc.Row([
@@ -346,6 +473,8 @@ def analise_picket_fence(upload_id, fileNames):
     except Exception as e:
         logger.error(e)
         children = html.Div(e)
+    os.remove(file_path)
+    logger.info(f'Picket Fence file has been deleted')
     return children
 def parse_contents_effectiveFS(upload_id, fileNames):
     logger.info(f'Effective field size has been started, filename = {fileNames}')
@@ -542,6 +671,10 @@ def parse_contents_effectiveFS(upload_id, fileNames):
         html.Hr(),  # horizontal line
     ])
 
+#@server.route('/Download/<path:path>')
+#def download(path):
+#    return send_from_directory(REPORTS_FOLDER, path, as_attachment=True)
+
 @app.callback(Output('output-data-upload', 'children'),
     [Input('type', 'value'), 
      Input('upload-files-div', 'isCompleted'),
@@ -550,6 +683,8 @@ def parse_contents_effectiveFS(upload_id, fileNames):
      State('upload-files-div', 'upload_id')])
 def update_output(type_selected, isCompleted, n_clicks, fileNames, upload_id):
     logger.info(f'Selected type - {type_selected}')
+    logger.info(f'Upload ID - {upload_id}')
+    logger.info(f'Upload Folder - {UPLOAD_FOLDER}')
     if type_selected == 'EffectiveFS':
         if isCompleted and n_clicks != 0:
             children = parse_contents_effectiveFS(upload_id, fileNames)
@@ -567,8 +702,8 @@ def update_output(type_selected, isCompleted, n_clicks, fileNames, upload_id):
                
             except Exception as e:
                 children = [html.Div(f'Error: {e}')]
-
-        children = html.Div(f'Star analysation is under progress')
+        else:
+            children = [html.Div(f'Upload images for Starshot evaluation')]
         return children
     elif type_selected == 'PicketFence':
         logger.info(f'PicketFence analysation has been started')
