@@ -15,6 +15,7 @@ from dash import dcc
 from dash import html
 from dash import dash_table
 import dash_uploader as du
+import uuid
 
 
 import dash_bootstrap_components as dbc
@@ -245,7 +246,8 @@ app.layout = html.Div([
         max_file_size=13800,  # 1800 Mb
         filetypes=['dcm'],
         id='upload-files-div',
-        max_files=20
+        max_files=20,
+        #upload_id=uuid.uuid1(),
         ),
 
     html.Button('Analyze', id='submit-val', n_clicks=0),
@@ -254,9 +256,9 @@ app.layout = html.Div([
 ])
 
 #Star Analyzation
-def analise_star(upload_id):
-    fileNames = os.listdir(os.path.join(UPLOAD_FOLDER, upload_id))
+def analise_star(upload_id, fileNames):
     
+    #fileNames = os.listdir(os.path.join(UPLOAD_FOLDER, upload_id))
     fullFileNames = [os.path.join(os.path.join(UPLOAD_FOLDER, upload_id), f) for f in fileNames]
     logger.info(f'file names = {fullFileNames}')
     star = Starshot.from_multiple_images(fullFileNames)
@@ -694,11 +696,12 @@ def update_output(type_selected, isCompleted, n_clicks, fileNames, upload_id):
     elif type_selected == 'Star':
         logger.info(f'Star analysation has been started')
         if isCompleted and n_clicks != 0:
-            logger.info(f'upload_id: {upload_id}')
+            logger.info(f'StarTest upload_id: {upload_id}')
+            logger.info(f'StarTest fileNames: {fileNames}')
             logger.info(f'button clicked {n_clicks} times')
 
             try:
-                children = analise_star(upload_id)
+                children = analise_star(upload_id = upload_id, fileNames = fileNames)
                
             except Exception as e:
                 children = [html.Div(f'Error: {e}')]
