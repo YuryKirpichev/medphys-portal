@@ -79,10 +79,9 @@ def calculafe_filed_size_varian(file, beam_number, control_point, number_of_leaf
     
     if leafs == None:
         leafs = range(number_of_leafs)
-        print('The machine has '+ str(number_of_leafs)+ ' leaf pairs')
+        logger.info('The machine has '+ str(number_of_leafs)+ ' leaf pairs')
     #field size
     for c in (range(control_point)):
-        
         
         if hasattr(file.BeamSequence[beam_number].ControlPointSequence[c], 'BeamLimitingDevicePositionSequence'):
             mlc_id = select_mlc(file.BeamSequence[beam_number].ControlPointSequence[c].BeamLimitingDevicePositionSequence)
@@ -118,7 +117,7 @@ def calculafe_filed_size_varian(file, beam_number, control_point, number_of_leaf
                 size.loc[c, 'field_size'] = size.loc[c, 'field_size'] + size_upper_lower*size_left_right
         else:
             size.loc[c, 'field_size'] = 'error'
-            print('ERROR')
+            logger.error('ERROR')
             
                 
     
@@ -252,7 +251,7 @@ app.layout = html.Div([
 
     html.Button('Analyze', id='submit-val', n_clicks=0),
     # place for the output
-    html.Div(id='output-data-upload'),
+    dcc.Loading(html.Div(id='output-data-upload')),
 ])
 
 #Star Analyzation
@@ -387,7 +386,7 @@ def analise_picket_fence(upload_id, fileNames):
             ], style={'padding': 25})
 
         try:
-            fig = pf.plotly_analyzed_image(show=False, show_colorbar=False, show_legend=False)
+            fig = pf.plotly_analyzed_images(show=False, show_colorbar=False, show_legend=False)
         
             fig1 = fig['Picket Fence']
             fig1.update_layout(
@@ -554,9 +553,14 @@ def parse_contents_effectiveFS(upload_id, fileNames):
 
                         number_of_control_points = file.BeamSequence[n].NumberOfControlPoints
                         size_control_point = calculafe_filed_size_varian(file, n, number_of_control_points, number_of_leafs, leafs =leafs)
-                         
                         #calculate weighted field size
                         size_control_point['weighted_size'] = size_control_point['mean_size']*size_control_point['weigh']
+
+                        median_value = size_control_point['field_size'].median()
+                        low_quantile = size_control_point['field_size'].quantile(0.25)
+                        high_quantile = size_control_point['field_size'].quantile(0.75)
+
+
                         mean_field_size = size_control_point['weighted_size'].sum()
 
                         jaw_tracking = check_jaw_tracking(file, n)
@@ -572,8 +576,11 @@ def parse_contents_effectiveFS(upload_id, fileNames):
                             'energy': str(nominal_energy) + str(fff_mode),
                             'dose rate': dose_rate,
                             'jaw tracking': jaw_tracking,
-                        	'mean field size corrected for the weights, mm^2': "{:10.4f}".format(mean_field_size),
-                        	'effective square filed size, cm': "{:10.4f}".format(sqrt(mean_field_size/100)),
+                            'median FS': median_value,
+                            'near min(25%) FS': f'{low_quantile:.3f}',
+                            'near max(75%) FS': f'{high_quantile:.3f}',
+                        	'mean FS corrected for the weights, mm^2': "{:10.4f}".format(mean_field_size),
+                        	'effective square FS, cm': "{:10.4f}".format(sqrt(mean_field_size/100)),
                         	'correction factor for PTW PinPoint 3D 31016': "{:10.4f}".format(f_ptw_31016(sqrt(mean_field_size/100)))}])
                         df = pd.concat([df, beam_table], ignore_index=True)
                         	
