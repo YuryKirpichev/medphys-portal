@@ -13,3 +13,4 @@ pylinac==3.30.0 #3.27.0
 pydicom==2.4.4
 loguru==0.7.2
 pillow==11.0.0
+openpyxl

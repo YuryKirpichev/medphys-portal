@@ -82,7 +82,7 @@ def calculafe_filed_size_varian(file, beam_number, control_point, number_of_leaf
         logger.info('The machine has '+ str(number_of_leafs)+ ' leaf pairs')
     #field size
     for c in (range(control_point)):
-        
+
         if hasattr(file.BeamSequence[beam_number].ControlPointSequence[c], 'BeamLimitingDevicePositionSequence'):
             mlc_id = select_mlc(file.BeamSequence[beam_number].ControlPointSequence[c].BeamLimitingDevicePositionSequence)
             size.loc[c, 'field_size'] = 0
@@ -123,6 +123,7 @@ def calculafe_filed_size_varian(file, beam_number, control_point, number_of_leaf
     
     #field size
     for c in (range(control_point)):
+        size.loc[c, 'gantry angle'] = file.BeamSequence[beam_number].ControlPointSequence[c].GantryAngle
         if c == 0:
             size.loc[c, 'weigh'] = file.BeamSequence[beam_number].ControlPointSequence[c].CumulativeMetersetWeight
         else:
@@ -347,11 +348,19 @@ def analise_star(upload_id, fileNames):
 
 #Picket Fence analyzation
 def analise_picket_fence(upload_id, fileNames):
-    file_path = os.path.join(UPLOAD_FOLDER, upload_id, fileNames[0])
     try:
         logger.info('Picket Fence Analysiation Started')
+        logger.debug(f'fileNames - {fileNames}')
         timestamp = str(dt.now())
-        pf = PicketFence(file_path)
+        if len(fileNames)==1:
+            logger.debug(fileNames)
+            file_path = os.path.join(UPLOAD_FOLDER, upload_id, fileNames[0])
+            pf = PicketFence(file_path)
+        else:
+            file_path = os.path.join(UPLOAD_FOLDER, upload_id, fileNames[0])
+            file_path_2 = os.path.join(UPLOAD_FOLDER, upload_id, fileNames[1])
+            logger.debug(file_path)
+            pf = PicketFence.from_multiple_images([file_path, file_path_2])
         dcm = pydicom.dcmread(file_path)
         pf.analyze(tolerance=0.5, action_tolerance=0.4, separate_leaves=False,)
         #logger.info(f'Picket Fence Analized Succesuffly results: {pf.results_data()}')
@@ -474,12 +483,15 @@ def analise_picket_fence(upload_id, fileNames):
     except Exception as e:
         logger.error(e)
         children = html.Div(e)
-    os.remove(file_path)
+    #os.remove(file_path)
     logger.info(f'Picket Fence file has been deleted')
     return children
 def parse_contents_effectiveFS(upload_id, fileNames):
+    logger.info(f'Upload ID - {upload_id}')
     logger.info(f'Effective field size has been started, filename = {fileNames}')
     file_path = os.path.join(UPLOAD_FOLDER, upload_id, fileNames[0])
+    
+
     try:
         file = dcm.dcmread(file_path, force=True)
         leafs= range(0,60)
@@ -565,7 +577,7 @@ def parse_contents_effectiveFS(upload_id, fileNames):
 
                         jaw_tracking = check_jaw_tracking(file, n)
                         
-                        
+                        size_control_point.to_excel(os.path.join(UPLOAD_FOLDER, upload_id, f'{plan_beam_name}+.xlsx') )
                         beam_table = pd.DataFrame([{
                             ' ':n+1,
                             'beam number': beam_number,
@@ -719,8 +731,8 @@ def update_output(type_selected, isCompleted, n_clicks, fileNames, upload_id):
         logger.info(f'PicketFence analysation has been started')
         if isCompleted and n_clicks != 0:
             logger.info(f'Upload ID: {upload_id}, fileNames: {fileNames}')
-            if len(fileNames)!=1:
-                return html.Div(f'Upload only one file for PicketFence analysation') 
+            #if len(fileNames)!=1:
+            #    return html.Div(f'Upload only one file for PicketFence analysation') 
             children = analise_picket_fence(upload_id = upload_id, fileNames = fileNames)
         else:
             children = html.Div(f'Upload file for PicketFence analysation')
